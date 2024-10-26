@@ -213,10 +213,10 @@ void pick_safe_actual_target(grid_t &grid, field_t &components,
     field_value_t current_value = components[position.first][position.second];
     bool modify_target = false;
     if (grid[position.first][position.second].dangerous) {
-        cerr << "currently in danger, handling this first" << endl;
+        // cerr << "currently in danger, handling this first" << endl;
         modify_target = true;
     } else if (!grid[target.first][target.second].dangerous) {
-        cerr << "target safe, no adjustement" << endl;
+        // cerr << "target safe, no adjustement" << endl;
         // print_grid(grid);
         actual_target = target;
         return;
@@ -241,7 +241,7 @@ void pick_safe_actual_target(grid_t &grid, field_t &components,
     }
     if (modify_target) {
         // print_field(components);
-        cerr << "we go to " << best.first << ", " << best.second << endl;
+        // cerr << "we go to " << best.first << ", " << best.second << endl;
         target = best;
         actual_target = best;
     } else {
@@ -312,12 +312,14 @@ int main() {
                 break;
             // Bomb
             case 1:
-                cerr << "bomb from " << owner << " (we are " << my_id << ") at "
-                     << y << ", " << x << endl;
+                // cerr << "bomb from " << owner << " (we are " << my_id << ") at "
+                //      << y << ", " << x << endl;
                 flag_bomb(grid, y, x, param_1, param_2);
                 break;
             }
         }
+        if (turn == 1)
+            target = my_position;
 
         field_t components;
         size_t component_count = compute_components(components, grid);
