@@ -123,7 +123,7 @@ size_t flood_fill(field_t &field, grid_t &grid, field_t &seen,
 
 size_t compute_components(field_t &components, grid_t &grid) {
     field_t seen;
-    size_t component_count = 0;
+    size_t component_count = 1;
     fill_field(seen, 0);
     for (size_t i = 0; i < height; i++) {
         for (size_t j = 0; j < width; j++) {
