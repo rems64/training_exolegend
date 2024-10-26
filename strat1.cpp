@@ -44,7 +44,7 @@ CellInfo make_cell_info(const char c) {
 const char cell_to_char(CellInfo cell) {
     switch (cell.type) {
     case Free:
-        return '.';
+        return cell.dangerous ? '-' : '.';
     case Crane:
         return '0' + cell.crane_value;
     case Wall:
@@ -113,7 +113,7 @@ size_t flood_fill(field_t &field, grid_t &grid, field_t &seen,
         return component_count;
     seen[i][j] = 1;
     CellInfo cell = get_cell_info(grid, i, j);
-    if (cell.type != free_type || cell.dangerous) {
+    if (cell.type != free_type) {
         field[i][j] = -1;
         return component_count;
     }
@@ -146,23 +146,31 @@ uint32_t clamp_i(uint32_t i) { return max(min(i, height - 1), 0u); }
 
 uint32_t clamp_j(uint32_t j) { return max(min(j, width - 1), 0u); }
 
+position_t make_position(uint32_t i, uint32_t j) { return make_pair(i, j); }
+
 void flag_bomb(grid_t &grid, uint32_t i, uint32_t j, int turns_left,
                int range) {
     CellInfo &cell = grid[i][j];
     cell.mined = true;
     cell.mine_turn_count = turns_left;
-    for (size_t row = clamp_i(i - range); row < clamp_i(i + range - 1) + 1;
-         i++) {
-        for (size_t col = clamp_i(j - range); col < clamp_j(j + range - 1) + 1;
-             i++) {
-            CellInfo &endangered_cell = grid[row][col];
-            endangered_cell.dangerous = true;
-            endangered_cell.dangerous_turn_count = turns_left;
+    static const std::pair<int, int> offsets[4] = {
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+    for (const auto offset : offsets) {
+        position_t position = make_position(i, j);
+        for (size_t distance = 0; distance <= range; distance++) {
+            grid[position.first][position.second].dangerous = true;
+            grid[position.first][position.second].dangerous_turn_count =
+                turns_left;
+            if (grid[position.first][position.second].type != Free)
+                break;
+            position.first += offset.first;
+            position.second += offset.second;
+            if (position.first < 0 || position.first >= height ||
+                position.second < 0 || position.second >= width)
+                break;
         }
     }
 }
-
-position_t make_position(uint32_t i, uint32_t j) { return make_pair(i, j); }
 
 enum State { Grind };
 enum Action { Goto, Plant };
@@ -194,8 +202,8 @@ void pick_new_target(grid_t &grid, field_t &components, position_t &position,
             }
         }
     }
-    cerr << "best candidate for new position is " << best.first << ", "
-         << best.second << endl;
+    // cerr << "best candidate for new position is " << best.first << ", "
+    //      << best.second << endl;
     target = best;
 }
 
@@ -203,7 +211,13 @@ void pick_safe_actual_target(grid_t &grid, field_t &components,
                              position_t &position, position_t &target,
                              position_t &actual_target) {
     field_value_t current_value = components[position.first][position.second];
-    if (!grid[target.first][target.second].dangerous) {
+    bool modify_target = false;
+    if (grid[position.first][position.second].dangerous) {
+        cerr << "currently in danger, handling this first" << endl;
+        modify_target = true;
+    } else if (!grid[target.first][target.second].dangerous) {
+        cerr << "target safe, no adjustement" << endl;
+        // print_grid(grid);
         actual_target = target;
         return;
     }
@@ -225,31 +239,29 @@ void pick_safe_actual_target(grid_t &grid, field_t &components,
             }
         }
     }
-    cerr << "picked actual target " << best.first << ", " << best.second;
-    actual_target = best;
+    if (modify_target) {
+        // print_field(components);
+        cerr << "we go to " << best.first << ", " << best.second << endl;
+        target = best;
+        actual_target = best;
+    } else {
+        actual_target = best;
+    }
 }
 
 void grind(grid_t &grid, field_t &components, enum State &state,
            enum Action &action, position_t &position, position_t &target,
            position_t &actual_target, bool &plant) {
     if (reached(position, target)) {
-        cerr << "a" << endl;
         switch (action) {
         case Plant:
             plant = true;
         case Goto:
-            cerr << "b" << endl;
             action = Plant;
-            target = make_position(target.first + 2, target.second + 1);
-            cerr << "c" << endl;
-            break;
-            // pick_new_target(grid, components, position, target);
+            pick_new_target(grid, components, position, target);
         }
     }
-    cerr << "d" << endl;
     pick_safe_actual_target(grid, components, position, target, actual_target);
-    cerr << "e" << endl;
-    // actual_target = target;
 }
 
 int main() {
@@ -268,7 +280,6 @@ int main() {
     position_t actual_target = {0, 0};
     // game loop
     while (1) {
-        cerr << "dafuk" << endl;
         turn += 1;
         for (size_t i = 0; i < given_height; i++) {
             string row;
@@ -301,6 +312,8 @@ int main() {
                 break;
             // Bomb
             case 1:
+                cerr << "bomb from " << owner << " (we are " << my_id << ") at "
+                     << y << ", " << x << endl;
                 flag_bomb(grid, y, x, param_1, param_2);
                 break;
             }
@@ -309,7 +322,6 @@ int main() {
         field_t components;
         size_t component_count = compute_components(components, grid);
         bool plant = false;
-        cerr << "toto" << endl;
 
         switch (state) {
         case Grind:
